@@ -4,24 +4,31 @@
 #include <time.h>
 #include <string.h>
 
+/* Cantidad de bytes aleatorios que preceden a cada byte real en la salida */
 #define RANDOM_BYTES_COUNT 7
 
-/**
- * Función auxiliar para encriptar un solo byte:
- * Escribe 7 bytes aleatorios seguidos del byte original.
+/*
+ * encrypt_byte: encripta un único byte.
+ *
+ * Formato del bloque de salida (8 bytes en total):
+ *   [ r0 ][ r1 ][ r2 ][ r3 ][ r4 ][ r5 ][ r6 ][ c ]
+ *     <--- 7 bytes aleatorios de relleno --->   dato
+ *
+ * El receptor sabe que el byte real siempre está en la posición 7,
+ * por lo que puede descartar los anteriores sin conocer la semilla.
  */
 void encrypt_byte(unsigned char c) {
     unsigned char buffer[RANDOM_BYTES_COUNT + 1];
-    
-    // Generar 7 bytes aleatorios
+
+    /* Llenar las primeras 7 posiciones con bytes pseudo-aleatorios */
     for (int i = 0; i < RANDOM_BYTES_COUNT; i++) {
         buffer[i] = (unsigned char)(rand() % 256);
     }
-    
-    // El octavo byte es el caracter real
+
+    /* La posición 7 lleva el byte original del mensaje */
     buffer[RANDOM_BYTES_COUNT] = c;
 
-    // Escribir los 8 bytes a la salida estándar
+    /* Escribir el bloque completo de 8 bytes en stdout de una sola vez */
     if (write(STDOUT_FILENO, buffer, RANDOM_BYTES_COUNT + 1) == -1) {
         perror("Error al escribir en stdout");
         exit(EXIT_FAILURE);
@@ -29,21 +36,26 @@ void encrypt_byte(unsigned char c) {
 }
 
 int main(int argc, char *argv[]) {
+    /* Inicializar la semilla con el tiempo actual para que los bytes
+     * aleatorios sean distintos en cada ejecución del programa */
     srand(time(NULL));
 
-    // CASO 1: El mensaje viene como argumento (argv[1])
+    /* CASO 1: El mensaje viene como argumento de línea de comando
+     * Ejemplo: bin/encrypt "hola mundo" */
     if (argc > 1) {
         char *message = argv[1];
+        /* Recorrer el string carácter a carácter hasta el terminador '\0' */
         for (int i = 0; message[i] != '\0'; i++) {
             encrypt_byte((unsigned char)message[i]);
         }
-    } 
-    // CASO 2: Leer desde la entrada estándar
+    }
+    /* CASO 2: No hay argumento, leer desde la entrada estándar
+     * Ejemplo: bin/encrypt < archivo.txt   o   echo hola | bin/encrypt */
     else {
         unsigned char buffer;
         ssize_t bytes_read;
 
-        // Leer byte por byte hasta el final del archivo (EOF)
+        /* Leer un byte a la vez hasta EOF (bytes_read == 0) o error (-1) */
         while ((bytes_read = read(STDIN_FILENO, &buffer, 1)) > 0) {
             encrypt_byte(buffer);
         }
